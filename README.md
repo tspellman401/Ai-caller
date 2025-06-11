@@ -1,2 +1,0 @@
-# Ai-caller
-Auto dialer

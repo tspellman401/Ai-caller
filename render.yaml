@@ -11,3 +11,4 @@ git commit -m "Initial AI Caller backend"
 git branch -M main
 git remote add origin https://github.com/tspellman401/render.yaml.git
 git push -u origin main
+startCommand: python app.py

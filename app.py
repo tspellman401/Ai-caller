@@ -3,6 +3,7 @@ from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
 import openai
 import os
+import datetime
 
 app = Flask(__name__)
 
@@ -24,29 +25,36 @@ def make_call():
     if not to_number:
         return jsonify({"status":"error","message":"Missing to_number"}),400
 
-    call = client.calls.create(
-        to=to_number,
-        from_=TWILIO_PHONE_NUMBER,
-        url=os.environ.get("WEBHOOK_URL") + "/voice"
-    )
+    # Get webhook URL from env, with fallback
+    webhook_url = os.environ.get("WEBHOOK_URL", "https://ai-caller-qej2.onrender.com") + "/voice"
 
-    msg = f"Placed call to {to_number}, SID: {call.sid}"
-    log_line(msg)
-    return jsonify({"status":"success","call_sid": call.sid})
+    try:
+        call = client.calls.create(
+            to=to_number,
+            from_=TWILIO_PHONE_NUMBER,
+            url=webhook_url
+        )
+        msg = f"Placed call to {to_number}, SID: {call.sid}"
+        log_line(msg)
+        return jsonify({"status":"success","call_sid": call.sid})
+    except Exception as e:
+        log_line(f"Error placing call to {to_number}: {str(e)}")
+        return jsonify({"status":"error","message":str(e)}),500
 
 # --- Twilio voice webhook ---
 @app.route("/voice", methods=["POST"])
 def voice():
     resp = VoiceResponse()
     prompt = (
-        "You are a seasoned real estate investor making a cold call. "
-        "Negotiate a great price for a wholesale property deal. "
-        "Be confident, polite, and persuasive."
+        "You are a professional real estate investor making a cold call to a seller. "
+        "Speak confidently and persuasively. Your goal is to negotiate the lowest possible price "
+        "to secure a wholesale deal. Be polite but firm."
     )
     ai_msg = get_ai_response(prompt)
     resp.say(ai_msg, voice="Polly.Matthew")
     resp.hangup()
-    log_line(f"Call spoke: {ai_msg}")
+
+    log_line(f"AI spoke: {ai_msg}")
     return str(resp)
 
 # --- GPT helper ---
@@ -54,18 +62,20 @@ def get_ai_response(prompt):
     try:
         completion = openai.ChatCompletion.create(
             model="gpt-4o",
-            messages=[{"role":"system","content":"You are a real estate negotiation expert."},
+            messages=[{"role":"system","content":"You are an expert real estate negotiator."},
                       {"role":"user","content":prompt}],
             max_tokens=200
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
+        log_line(f"Error generating AI response: {str(e)}")
         return "Sorry, there was an error generating the message."
 
 # --- Logging ---
 def log_line(text):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open("call_log.txt", "a") as f:
-        f.write(text.replace("\n", " ") + "\n")
+        f.write(f"[{timestamp}] {text}\n")
 
 # --- Start server ---
 if __name__ == "__main__":

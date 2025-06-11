@@ -7,9 +7,9 @@ import datetime
 
 app = Flask(__name__)
 
-# --- Config: API keys pre-filled ---
+# --- Config: API keys ---
 TWILIO_ACCOUNT_SID = "ACbd39e842a1d3cecc77d2bceb6bd39f24"
-TWILIO_AUTH_TOKEN = "6f2bc7c8b8647647631b214774832bb5"
+TWILIO_AUTH_TOKEN = "d878bc7bd6acced30d18be6273ddcf43"
 TWILIO_PHONE_NUMBER = "+18333823781"
 OPENAI_API_KEY = "sk‑proj‑oKiIp6tIadmCST‑tCN4CtSwDzvXM8UWjwL1QTER2uPdX‑lEDt_PWUd7YtJYpkBGUxH1q1XbixoT3BlbkFJu_jUrJawGt_CMRDdJ2s5w3lQmnMKCCrvF--VE6Bownx8H‑3b‑D‑swm5uYgf2Km_C0tFX2g‑6sA"
 
@@ -25,7 +25,7 @@ def make_call():
     if not to_number:
         return jsonify({"status":"error","message":"Missing to_number"}),400
 
-    # Get webhook URL from env, with fallback
+    # Get webhook URL with fallback
     webhook_url = os.environ.get("WEBHOOK_URL", "https://ai-caller-qej2.onrender.com") + "/voice"
 
     try:
@@ -45,16 +45,54 @@ def make_call():
 @app.route("/voice", methods=["POST"])
 def voice():
     resp = VoiceResponse()
-    prompt = (
-        "You are a professional real estate investor making a cold call to a seller. "
-        "Speak confidently and persuasively. Your goal is to negotiate the lowest possible price "
-        "to secure a wholesale deal. Be polite but firm."
-    )
-    ai_msg = get_ai_response(prompt)
-    resp.say(ai_msg, voice="Polly.Matthew")
-    resp.hangup()
 
-    log_line(f"AI spoke: {ai_msg}")
+    gather = resp.gather(
+        input='speech',
+        timeout=5,
+        speechTimeout='auto',
+        action='/gather',
+        method='POST'
+    )
+
+    # First pro negotiation message
+    first_prompt = (
+        "Hi, this is Tom, a local real estate investor. "
+        "I wanted to see if you'd consider a quick cash offer on your property. "
+        "Can you tell me a little about your situation with the property?"
+    )
+
+    gather.say(first_prompt, voice="Polly.Matthew")
+    resp.redirect('/voice')  # Loop back if no input
+
+    log_line(f"AI first prompt: {first_prompt}")
+    return str(resp)
+
+# --- Twilio gather response ---
+@app.route("/gather", methods=["POST"])
+def gather():
+    resp = VoiceResponse()
+    speech_result = request.form.get('SpeechResult', '')
+
+    # Pro follow-up negotiation prompt
+    follow_up_prompt = (
+        f"You are a professional real estate investor on a phone call. "
+        f"The seller just said: '{speech_result}'. "
+        "Respond in a friendly and persuasive way. "
+        "Ask about the property, their timeline to sell, and any flexibility on price."
+    )
+
+    ai_reply = get_ai_response(follow_up_prompt)
+
+    gather = resp.gather(
+        input='speech',
+        timeout=5,
+        speechTimeout='auto',
+        action='/gather',
+        method='POST'
+    )
+    gather.say(ai_reply, voice="Polly.Matthew")
+
+    log_line(f"Seller said: {speech_result} | AI reply: {ai_reply}")
     return str(resp)
 
 # --- GPT helper ---
@@ -62,7 +100,11 @@ def get_ai_response(prompt):
     try:
         completion = openai.ChatCompletion.create(
             model="gpt-4o",
-            messages=[{"role":"system","content":"You are an expert real estate negotiator."},
+            messages=[{"role":"system","content":(
+                "You are an expert real estate negotiator on a phone call. "
+                "Your goal is to build rapport, uncover seller motivation, understand property condition, "
+                "and negotiate a great price for a wholesale deal. Speak naturally and confidently."
+            )},
                       {"role":"user","content":prompt}],
             max_tokens=200
         )

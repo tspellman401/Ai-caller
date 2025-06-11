@@ -1,14 +1,9 @@
----
-
-### Final Step — GitHub Upload
-
-Now run this in your `ai-caller-backend/` folder:
-
-```bash
-git init
-git add .
-git commit -m "Initial AI Caller backend"
-git branch -M main
-git remote add origin https://github.com/tspellman401/render.yaml.git
-git push -u origin main
-startCommand: python app.py
+services:
+  - type: web
+    name: ai-caller-app
+    env: python
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: WEBHOOK_URL
+        fromService: self

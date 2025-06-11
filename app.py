@@ -17,13 +17,33 @@ OPENAI_API_KEY = "sk‑proj‑oKiIp6tIadmCST‑tCN4CtSwDzvXM8UWjwL1QTER2uPdX‑l
 client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 openai.api_key = OPENAI_API_KEY
 
-# --- Trigger outbound call ---
+# --- Trigger outbound 
 @app.route("/make_call", methods=["POST"])
 def make_call():
     data = request.json or {}
     to_number = data.get("to_number")
     if not to_number:
         return jsonify({"status":"error","message":"Missing to_number"}),400
+
+    # Get webhook URL with fallback
+    webhook_url = os.environ.get("WEBHOOK_URL", "https://ai-caller-qej2.onrender.com") + "/voice"
+
+    try:
+        call = client.calls.create(
+            to=to_number,
+            from_=TWILIO_PHONE_NUMBER,
+            url=webhook_url
+        )
+        msg = f"Placed call to {to_number}, SID: {call.sid}"
+        log_line(msg)
+        return jsonify({"status":"success","call_sid": call.sid})
+    except Exception as e:
+        # Improved 401 logging
+        if "Authenticate" in str(e) or "401" in str(e):
+            log_line("ERROR: Twilio 401 Unauthorized - check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN (likely wrong or test credentials)")
+        else:
+            log_line(f"Error placing call to {to_number}: {str(e)}")
+        return jsonify({"status":"error","message":str(e)}),500
 
     # Get webhook URL with fallback
     webhook_url = os.environ.get("WEBHOOK_URL", "https://ai-caller-qej2.onrender.com") + "/voice"

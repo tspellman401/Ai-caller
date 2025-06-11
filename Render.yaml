@@ -1,15 +1,13 @@
-# Ai-caller
-Auto dialer
 ---
 
 ### Final Step — GitHub Upload
 
 Now run this in your `ai-caller-backend/` folder:
-render.yaml
+
 ```bash
 git init
 git add .
 git commit -m "Initial AI Caller backend"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/render.yaml.git
+git remote add origin https://github.com/tspellman401/render.yaml.git
 git push -u origin main

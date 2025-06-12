@@ -124,24 +124,39 @@ def gather():
 
 # --- GPT helper ---
 def get_ai_response(prompt):
-    try:
-        completion = openai.ChatCompletion.create(
-            model="gpt-4o",
-            messages=[{"role":"system","content":(
-                "You are an expert real estate negotiator on a phone call. "
-                "Your goal is to build rapport, uncover seller motivation, understand property condition, "
-                "and negotiate a great price for a wholesale deal. Speak naturally and confidently. "
-                "Follow this flow strictly: 1. Build rapport, 2. Understand motivation, 3. Property condition, "
-                "4. Timeline to sell, 5. Flexibility on price, 6. If motivated, pitch cash offer, "
-                "7. If not motivated or says not interested, exit call politely."
-            )},
-                      {"role":"user","content":prompt}],
-            max_tokens=200
-        )
-        return completion.choices[0].message.content.strip()
-    except Exception as e:
-        log_line(f"Error generating AI response: {str(e)}")
-        return "Sorry, there was an error generating the message."
+    import time
+
+def get_ai_response(prompt, max_retries=3, retry_delay=2):
+    attempt = 0
+    while attempt < max_retries:
+        try:
+            completion = openai.ChatCompletion.create(
+                model="gpt-4o",
+                messages=[{"role":"system","content":(
+                    "You are an expert real estate negotiator on a phone call. "
+                    "Your goal is to build rapport, uncover seller motivation, understand property condition, "
+                    "and negotiate a great price for a wholesale deal. Speak naturally and confidently. "
+                    "Follow this flow strictly: 1. Build rapport, 2. Understand motivation, 3. Property condition, "
+                    "4. Timeline to sell, 5. Flexibility on price, 6. If motivated, pitch cash offer, "
+                    "7. If not motivated or says not interested, exit call politely."
+                )},
+                {"role":"user","content":prompt}],
+                max_tokens=200
+            )
+            ai_message = completion.choices[0].message.content.strip()
+            if not ai_message:
+                log_line("Warning: GPT returned empty message → using fallback polite message.")
+                return "Thank you for sharing. Could you tell me more about your property?"
+            return ai_message
+        except Exception as e:
+            attempt += 1
+            log_line(f"GPT error on attempt {attempt}: {str(e)}")
+            if attempt < max_retries:
+                log_line(f"Retrying GPT in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                log_line("Max GPT retry attempts reached. Using fallback polite message.")
+                return "Sorry, I didn't quite catch that. Could you tell me more about your property?"
 
 # --- Logging ---
 def log_line(text):

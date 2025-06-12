@@ -1,6 +1,6 @@
 @app.route("/gather", methods=["POST"])
 def gather():
-    resp = VoiceResponse("polly.joana")
+    resp = VoiceResponse()
 
     # Safely get seller speech result
     speech_result = request.form.get('SpeechResult', '')
@@ -12,7 +12,7 @@ def gather():
     exit_phrases = ["not interested", "no thank you", "stop calling", "do not call", "not selling", "not for sale"]
 
     if any(phrase in speech_result.lower() for phrase in exit_phrases):
-        resp.say("Understood. Thank you for your time. Have a great day!")
+        resp.say("Understood. Thank you for your time. Have a great day!", voice="Polly.Joanna")
         resp.hangup()
         log_line(f"Seller said: {speech_result} | AI ending call politely.")
         return str(resp)
@@ -26,7 +26,7 @@ def gather():
         loop_count = 1
 
     if loop_count >= 5:
-        resp.say("Thank you again for your time. Goodbye.")
+        resp.say("Thank you again for your time. Goodbye.", voice="Polly.Joanna")
         resp.hangup()
         log_line(f"Max loop reached ({loop_count}), ending call.")
         return str(resp)
@@ -51,7 +51,7 @@ def gather():
         action='/gather',
         method='POST'
     )
-    gather.say(ai_reply, voice="Polly.Matthew")
+    gather.say(ai_reply, voice="Polly.Joanna")
 
     log_line(f"Loop {loop_count} | Seller said: {speech_result} | AI reply: {ai_reply}")
     return str(resp)

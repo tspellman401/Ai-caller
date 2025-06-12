@@ -1,6 +1,6 @@
 @app.route("/gather", methods=["POST"])
 def gather():
-    resp = VoiceResponse()
+    resp = VoiceResponse("polly.joana")
 
     # Safely get seller speech result
     speech_result = request.form.get('SpeechResult', '')

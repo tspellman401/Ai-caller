@@ -1,12 +1,17 @@
 from flask import Flask, request, jsonify, session
+from flask_cors import CORS
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
 import openai
 import os
 import datetime
+import time
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"  # Needed for session tracking (loop count)
+
+# Enable CORS for all routes
+CORS(app)
 
 # --- Config: API keys ---
 TWILIO_ACCOUNT_SID = "ACbd39e842a1d3cecc77d2bceb6bd39f24"
@@ -76,7 +81,12 @@ def voice():
 @app.route("/gather", methods=["POST"])
 def gather():
     resp = VoiceResponse()
+
+    # Safely get seller speech result
     speech_result = request.form.get('SpeechResult', '')
+    if not speech_result:
+        speech_result = ''
+    log_line(f"Raw SpeechResult: {speech_result}")
 
     # Exit logic → if seller says "not interested", AI will thank and hang up
     exit_phrases = ["not interested", "no thank you", "stop calling", "do not call", "not selling", "not for sale"]
@@ -88,8 +98,12 @@ def gather():
         return str(resp)
 
     # Loop count limit → prevent infinite loop
-    loop_count = session.get("loop_count", 0) + 1
-    session["loop_count"] = loop_count
+    try:
+        loop_count = session.get("loop_count", 0) + 1
+        session["loop_count"] = loop_count
+    except Exception as e:
+        log_line(f"Session error: {str(e)} → using fallback loop_count = 1")
+        loop_count = 1
 
     if loop_count >= 5:
         resp.say("Thank you again for your time. Goodbye.")
@@ -122,10 +136,7 @@ def gather():
     log_line(f"Loop {loop_count} | Seller said: {speech_result} | AI reply: {ai_reply}")
     return str(resp)
 
-# --- GPT helper ---
-def get_ai_response(prompt):
-    import time
-
+# --- GPT helper with retry ---
 def get_ai_response(prompt, max_retries=3, retry_delay=2):
     attempt = 0
     while attempt < max_retries:

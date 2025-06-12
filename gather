@@ -1,0 +1,57 @@
+@app.route("/gather", methods=["POST"])
+def gather():
+    resp = VoiceResponse()
+
+    # Safely get seller speech result
+    speech_result = request.form.get('SpeechResult', '')
+    if not speech_result:
+        speech_result = ''
+    log_line(f"Raw SpeechResult: {speech_result}")
+
+    # Exit logic → if seller says "not interested", AI will thank and hang up
+    exit_phrases = ["not interested", "no thank you", "stop calling", "do not call", "not selling", "not for sale"]
+
+    if any(phrase in speech_result.lower() for phrase in exit_phrases):
+        resp.say("Understood. Thank you for your time. Have a great day!")
+        resp.hangup()
+        log_line(f"Seller said: {speech_result} | AI ending call politely.")
+        return str(resp)
+
+    # Loop count limit → prevent infinite loop
+    try:
+        loop_count = session.get("loop_count", 0) + 1
+        session["loop_count"] = loop_count
+    except Exception as e:
+        log_line(f"Session error: {str(e)} → using fallback loop_count = 1")
+        loop_count = 1
+
+    if loop_count >= 5:
+        resp.say("Thank you again for your time. Goodbye.")
+        resp.hangup()
+        log_line(f"Max loop reached ({loop_count}), ending call.")
+        return str(resp)
+
+    # Pro follow-up negotiation prompt
+    follow_up_prompt = (
+        f"You are a professional real estate investor on a phone call. "
+        f"The seller just said: '{speech_result}'. "
+        "Respond in a friendly and persuasive way. "
+        "Follow this flow: "
+        "1. Build rapport, 2. Understand motivation, 3. Ask about property condition, "
+        "4. Ask about timeline to sell, 5. Ask about flexibility on price, 6. If motivated, pitch cash offer, "
+        "7. If not motivated or says not interested, exit call politely."
+    )
+
+    ai_reply = get_ai_response(follow_up_prompt)
+
+    gather = resp.gather(
+        input='speech',
+        timeout=5,
+        speechTimeout='auto',
+        action='/gather',
+        method='POST'
+    )
+    gather.say(ai_reply, voice="Polly.Matthew")
+
+    log_line(f"Loop {loop_count} | Seller said: {speech_result} | AI reply: {ai_reply}")
+    return str(resp)
